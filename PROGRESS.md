@@ -97,17 +97,51 @@ LICENSE              GPL-3.0
 | 5 | Voice = Whisper `large-v3-turbo` on Groq | $0.04/hr of audio. Owning the pipeline beats `SpeechRecognizer`, which is a black box |
 | 6 | Cleanup pass emits **edit operations**, not free text | Constrains the model so it physically cannot rewrite the user's words. The failure mode people hate is "it changed what I said" |
 
+## Settled: licensing and product model
+
+**GPL-3.0 accepted.** The project stays free and open source, for tablets, not
+sold and not commercially distributed. No clean-room needed — build on HeliBoard's
+GPL code directly. This decision is closed.
+
+## Requirements (confirmed by user, 2026-10-25)
+
+### Voice input
+- **No API keys baked into the app. Ever.** Users bring their own, entered in-app
+  and stored on-device. The repo must never contain a key.
+- Providers, in priority order:
+  1. **Android built-in** (`SpeechRecognizer`) — no key, always available, on-device
+     on newer versions. The default that works out of the box.
+  2. **Groq** — Whisper `large-v3-turbo`; fastest and cheapest.
+  3. **OpenAI** — Whisper.
+  4. Any other provider exposing a speech-to-text model.
+- Terminology: speech-to-text is **STT/ASR**. TTS is the opposite direction.
+  "Wispr Flow" is a competing *app*, not a model — the models are Whisper-class ASR,
+  reachable through Groq/OpenAI/etc.
+
+### Rewrite agent (STT → LLM → input box)
+- Transcribed text is passed to an LLM together with **user-supplied instructions**,
+  e.g. "make me sound friendlier", "make me sound professional".
+- Output replaces the text in the input field, ready to send.
+- Instructions editable, and saveable as reusable presets.
+
+### LLM providers
+- Groq, Gemini, OpenAI, Claude, OpenRouter — plus any credential-compatible provider.
+- **Custom provider support is required**: user adds any OpenAI-compatible endpoint
+  via base URL + API key + model name. This covers self-hosted and local servers.
+
 ## Open decisions (unresolved, deliberate)
 
-- **GPLv3 — the big one.** HeliBoard is GPL-3.0. Forking and building privately
-  is fine. *Distributing* anything means publishing source. Options: (a) go open
-  source and monetise the server-side voice service, (b) pick a permissively
-  licensed base, (c) clean-room the IME scaffolding. **Must be settled before
-  significant code is written.**
+- Rewrite agent UX: replace text in place, or show a preview the user accepts.
+  Leaning preview-and-accept, consistent with the asymmetric-loss argument for
+  autocorrect (a wrong rewrite is far worse than no rewrite).
 - On-device cleanup model choice (Qwen3 0.6B / Gemma 3n E2B / Llama 3.2 1B).
 - Whether to keep or delete HeliBoard's existing prediction engine.
+- Key storage: Android Keystore vs encrypted prefs. Must be per-provider.
 
 ## Next steps, in order
+
+> **HOLD:** user is testing the baseline APK. Do not begin feature code until they
+> confirm. Spec above is captured so nothing is lost if this session ends.
 
 1. ~~Get a baseline build green~~ **DONE** — see build command above.
 2. Measure stock keypress→glyph latency on real hardware. **Do not start feature
