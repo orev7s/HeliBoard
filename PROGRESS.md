@@ -25,26 +25,55 @@ Three things make it different from a stock keyboard:
 
 ---
 
-## Current state — Phase 0 (setup) complete
+## Current state — Phase 1 complete: baseline build GREEN
 
 - Forked `HeliBorg/HeliBoard` → `orev7s/HeliBoard`
 - Cloned locally; remotes `origin` (fork) and `upstream` (HeliBorg) both set
-- HEAD = `e97acdbe` — upstream `main`, 2026-10-18
-- **No source changes have been made yet.** This commit is the first one.
+- Base commit = `e97acdbe` — upstream `main`, 2026-10-18
+- **`assembleDebug` builds with zero source changes.**
+  Output: `app/build/outputs/apk/debug/HeliBoard_4.3-beta1-debug.apk`
+  27,254,502 bytes (26 MB), package `helium314.keyboard.debug`,
+  versionCode 4300, minSdk 21, targetSdk 37.
+- **No application code has been modified.** Everything so far is environment.
 
 ## Environment (this sandbox)
 
 | Thing | State |
 |---|---|
-| Java | OpenJDK 21.0.10; project targets Java 17 |
-| Android SDK | **Not installed** — `ANDROID_HOME` unset, no SDK dir found |
-| Gradle | wrapper present (`gradlew`), will self-download on first run |
+| Machine | 2 vCPU Xeon Platinum, **4 GB RAM, zero swap**, 30 GB disk |
+| Location | Singapore (Alibaba Cloud); Turkey RTT ~140-180ms |
+| JDK | Temurin **17.0.21** at `/home/wuying/jdk17` — system JVM is JRE-only with no `javac` |
+| Android SDK | `/home/wuying/android-sdk` — cmdline-tools `16111833`, platform-tools `37.0.1`, build-tools `37.0.0`, `platforms/android-37.0`, NDK `28.0.13004108` |
+| Gradle | 9.7.1 via wrapper |
 | gh CLI | 2.45.0, authed as `orev7s`, scopes `repo workflow read:org gist` |
 | Project config | `compileSdk 37`, `minSdk 21`, `targetSdk 37`, Compose BOM 2025.11.01 |
 
-**Local builds are currently blocked** until an Android SDK is installed. Fallback
-is the repo's own `.github/workflows/build-debug-apk.yml`, which can produce a
-debug APK from a pushed branch without a local toolchain.
+### Build command that works
+
+4 GB RAM with **no swap** means an unconstrained build gets the JVM OOM-killed
+inside `minifyDebugWithR8`. This invocation succeeds:
+
+```bash
+export JAVA_HOME=/home/wuying/jdk17
+export ANDROID_HOME=/home/wuying/android-sdk
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
+./gradlew assembleDebug --no-daemon --max-workers=1 \
+  -Dorg.gradle.jvmargs="-Xmx2g -XX:MaxMetaspaceSize=512m"
+```
+
+- Cold build ~8m30s (17 tasks executed). Expect 1-3 min incremental.
+- **Run `./gradlew --stop` before rebuilding.** A stale daemon holding ~1.2 GB is
+  what killed the first attempt.
+- Do **not** disable debug minification. It exists to keep the APK under the
+  25 MB ceiling, which also keeps it small over a slow link.
+- Note the SDK CLI renamed the platform package: it is `platforms/android-37.0`,
+  not `platforms;android-37`.
+
+### CI is not available
+
+GitHub Actions refuses to start jobs: *"your account is locked due to a billing
+issue."* This is account-level and blocks every repo. Local builds are the only
+path until it is cleared in GitHub billing settings.
 
 ## Repo landmarks
 
@@ -80,9 +109,11 @@ LICENSE              GPL-3.0
 
 ## Next steps, in order
 
-1. Get a baseline build green (local SDK install, or Actions).
+1. ~~Get a baseline build green~~ **DONE** — see build command above.
 2. Measure stock keypress→glyph latency on real hardware. **Do not start feature
-   work until there is a baseline number to regress against.**
+   work until there is a baseline number to regress against.** Needs `adb` against
+   a real tablet. Only the APK (26 MB) ever needs to cross the network — never the
+   290 MB repo.
 3. Voice pipeline: push-to-talk → Groq Whisper → `commitText`. Smallest shippable
    differentiator; build it before the hard layout research.
 4. Posture detection + split layout.
